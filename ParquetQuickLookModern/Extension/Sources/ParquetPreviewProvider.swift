@@ -7,12 +7,13 @@ import QuickLookUI
 @objc(ParquetPreviewProvider)
 final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NSSearchFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     private let logger = Logger(subsystem: "com.cheky.parquetquicklook2.host.extension", category: "preview")
-    private let buildMarker = "PQL_BUILD_20260212_DUCKDB_TABLE_V1"
+    private let buildMarker = "PQL_BUILD_20260212_DUCKDB_TABLE_V2"
     private let rowNumberColumnID = NSUserInterfaceItemIdentifier("__row_number__")
 
     private struct RowRecord {
         let index: Int
         let values: [String: String]
+        let rawValues: [String: Any]
         let searchableText: String
     }
 
@@ -26,6 +27,7 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
     private var rowStatusLabel: NSTextField!
     private var headerTextView: NSTextView!
     private var tableView: NSTableView!
+    private var headerHeightConstraint: NSLayoutConstraint?
 
     private var allColumns: [String] = []
     private var allRows: [RowRecord] = []
@@ -79,8 +81,11 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         table.rowHeight = 24
         table.gridStyleMask = [.solidHorizontalGridLineMask, .solidVerticalGridLineMask]
         table.intercellSpacing = NSSize(width: 8, height: 2)
+        table.allowsMultipleSelection = true
+        table.allowsColumnSelection = true
         table.allowsColumnResizing = true
         table.allowsColumnReordering = true
+        table.allowsTypeSelect = true
         table.delegate = self
         table.dataSource = self
         self.tableView = table
@@ -90,6 +95,9 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         root.addSubview(status)
         root.addSubview(headerScroll)
         root.addSubview(tableScroll)
+
+        let headerHeight = headerScroll.heightAnchor.constraint(equalToConstant: 210)
+        self.headerHeightConstraint = headerHeight
 
         NSLayoutConstraint.activate([
             search.topAnchor.constraint(equalTo: root.topAnchor, constant: 10),
@@ -104,7 +112,7 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             headerScroll.topAnchor.constraint(equalTo: search.bottomAnchor, constant: 8),
             headerScroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
             headerScroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
-            headerScroll.heightAnchor.constraint(equalToConstant: 210),
+            headerHeight,
 
             tableScroll.topAnchor.constraint(equalTo: headerScroll.bottomAnchor, constant: 8),
             tableScroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
@@ -113,6 +121,11 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         ])
 
         self.view = root
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        adjustPreferredPreviewSize()
     }
 
     @objc(preparePreviewOfFileAtURL:completionHandler:)
@@ -149,8 +162,10 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             filteredRows = allRows.filter { $0.searchableText.contains(q) }
         }
 
+        sortFilteredRows()
         rowStatusLabel.stringValue = "\(filteredRows.count) / \(allRows.count) rows"
         tableView.reloadData()
+        adjustPreferredPreviewSize()
     }
 
     private func configureTableColumns(_ columns: [String]) {
@@ -163,17 +178,24 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         numberColumn.width = 60
         numberColumn.minWidth = 50
         numberColumn.maxWidth = 100
+        numberColumn.sortDescriptorPrototype = NSSortDescriptor(key: rowNumberColumnID.rawValue, ascending: true)
         tableView.addTableColumn(numberColumn)
 
         for columnName in columns {
             let id = NSUserInterfaceItemIdentifier(columnName)
             let column = NSTableColumn(identifier: id)
             column.title = columnName
-            column.width = 220
+            column.width = suggestedColumnWidth(for: columnName)
             column.minWidth = 110
+            column.sortDescriptorPrototype = NSSortDescriptor(
+                key: columnName,
+                ascending: true,
+                selector: #selector(NSString.localizedStandardCompare(_:))
+            )
             tableView.addTableColumn(column)
         }
 
+        tableView.sortDescriptors = []
         tableView.reloadData()
     }
 
@@ -218,6 +240,49 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         }
 
         return cell
+    }
+
+    func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+        sortFilteredRows()
+        tableView.reloadData()
+    }
+
+    @objc func copy(_ sender: Any?) {
+        guard !filteredRows.isEmpty else {
+            NSSound.beep()
+            return
+        }
+
+        var rowIndexes = tableView.selectedRowIndexes
+        if rowIndexes.isEmpty, tableView.selectedRow >= 0 {
+            rowIndexes.insert(tableView.selectedRow)
+        }
+        guard !rowIndexes.isEmpty else {
+            NSSound.beep()
+            return
+        }
+
+        let columnIndexes: [Int]
+        if tableView.selectedColumnIndexes.isEmpty {
+            columnIndexes = Array(0..<tableView.numberOfColumns)
+        } else {
+            columnIndexes = Array(tableView.selectedColumnIndexes)
+        }
+
+        var lines: [String] = []
+        let header = columnIndexes.map { sanitizeForClipboard(tableView.tableColumns[$0].title) }
+        lines.append(header.joined(separator: "\t"))
+
+        for row in rowIndexes {
+            let cells = columnIndexes.map { column in
+                sanitizeForClipboard(copyValue(row: row, column: column))
+            }
+            lines.append(cells.joined(separator: "\t"))
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
     }
 
     private func buildContent(for fileURL: URL) -> PreviewContent {
@@ -398,16 +463,25 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             columnOrder = (json["columns"] as? [String]) ?? inferColumns(from: rows)
             rowRecords = rows.enumerated().map { offset, row in
                 var values: [String: String] = [:]
+                var rawValues: [String: Any] = [:]
                 values.reserveCapacity(columnOrder.count)
+                rawValues.reserveCapacity(columnOrder.count)
                 var searchParts: [String] = []
                 for column in columnOrder {
-                    let text = formatValue(row[column])
+                    let raw = row[column] ?? NSNull()
+                    let text = formatValue(raw)
                     values[column] = text
+                    rawValues[column] = raw
                     if !text.isEmpty {
                         searchParts.append(text.lowercased())
                     }
                 }
-                return RowRecord(index: offset + 1, values: values, searchableText: searchParts.joined(separator: " "))
+                return RowRecord(
+                    index: offset + 1,
+                    values: values,
+                    rawValues: rawValues,
+                    searchableText: searchParts.joined(separator: " ")
+                )
             }
         } else {
             columnOrder = []
@@ -446,7 +520,12 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             }
 
             let rows = hexRows.enumerated().map { offset, line in
-                RowRecord(index: offset + 1, values: ["Hex": line], searchableText: line.lowercased())
+                RowRecord(
+                    index: offset + 1,
+                    values: ["Hex": line],
+                    rawValues: ["Hex": line],
+                    searchableText: line.lowercased()
+                )
             }
             return PreviewContent(header: lines.joined(separator: "\n"), columns: ["Hex"], rows: rows)
         } catch {
@@ -465,6 +544,155 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
     private func inferColumns(from rows: [[String: Any]]) -> [String] {
         guard let first = rows.first else { return [] }
         return first.keys.sorted()
+    }
+
+    private func sortFilteredRows() {
+        let descriptors = tableView.sortDescriptors
+        guard !descriptors.isEmpty else {
+            filteredRows.sort { $0.index < $1.index }
+            return
+        }
+
+        filteredRows.sort { lhs, rhs in
+            for descriptor in descriptors {
+                guard let key = descriptor.key else { continue }
+
+                let comparison: ComparisonResult
+                if key == rowNumberColumnID.rawValue {
+                    comparison = compareInts(lhs.index, rhs.index)
+                } else {
+                    comparison = compareSortValues(
+                        lhs.rawValues[key] ?? NSNull(),
+                        rhs.rawValues[key] ?? NSNull()
+                    )
+                }
+
+                if comparison != .orderedSame {
+                    if descriptor.ascending {
+                        return comparison == .orderedAscending
+                    }
+                    return comparison == .orderedDescending
+                }
+            }
+            return lhs.index < rhs.index
+        }
+    }
+
+    private func compareInts(_ lhs: Int, _ rhs: Int) -> ComparisonResult {
+        if lhs < rhs { return .orderedAscending }
+        if lhs > rhs { return .orderedDescending }
+        return .orderedSame
+    }
+
+    private func compareSortValues(_ lhs: Any, _ rhs: Any) -> ComparisonResult {
+        let lhsNull = lhs is NSNull
+        let rhsNull = rhs is NSNull
+        if lhsNull && rhsNull { return .orderedSame }
+        if lhsNull { return .orderedDescending }
+        if rhsNull { return .orderedAscending }
+
+        if let left = numericSortValue(lhs), let right = numericSortValue(rhs) {
+            if left < right { return .orderedAscending }
+            if left > right { return .orderedDescending }
+            return .orderedSame
+        }
+
+        let leftText = textSortValue(lhs)
+        let rightText = textSortValue(rhs)
+        return leftText.localizedStandardCompare(rightText)
+    }
+
+    private func numericSortValue(_ value: Any) -> Double? {
+        if let number = value as? NSNumber {
+            return number.doubleValue
+        }
+        if let string = value as? String {
+            return Double(string)
+        }
+        return nil
+    }
+
+    private func textSortValue(_ value: Any) -> String {
+        if let string = value as? String {
+            return string
+        }
+        if let number = value as? NSNumber {
+            return number.stringValue
+        }
+        if let array = value as? [Any],
+           let data = try? JSONSerialization.data(withJSONObject: array),
+           let string = String(data: data, encoding: .utf8) {
+            return string
+        }
+        if let dict = value as? [String: Any],
+           let data = try? JSONSerialization.data(withJSONObject: dict),
+           let string = String(data: data, encoding: .utf8) {
+            return string
+        }
+        return String(describing: value)
+    }
+
+    private func suggestedColumnWidth(for columnName: String) -> CGFloat {
+        let sample = allRows.prefix(120)
+        var maxChars = min(columnName.count, 64)
+        for row in sample {
+            let value = row.values[columnName] ?? ""
+            maxChars = max(maxChars, min(value.count, 80))
+        }
+        let estimated = CGFloat(maxChars) * 7.2 + 26
+        return min(max(estimated, 120), 420)
+    }
+
+    private func copyValue(row: Int, column: Int) -> String {
+        guard row >= 0, row < filteredRows.count, column >= 0, column < tableView.numberOfColumns else { return "" }
+        let tableColumn = tableView.tableColumns[column]
+        if tableColumn.identifier == rowNumberColumnID {
+            return String(filteredRows[row].index)
+        }
+        return filteredRows[row].values[tableColumn.identifier.rawValue] ?? ""
+    }
+
+    private func sanitizeForClipboard(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+    }
+
+    private func adjustPreferredPreviewSize() {
+        let screenFrame = (view.window?.screen ?? NSScreen.main ?? NSScreen.screens.first)?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1400, height: 900)
+
+        let maxWidth = max(900, screenFrame.width - 48)
+        let maxHeight = max(620, screenFrame.height - 72)
+
+        let headerLines = max(headerTextView.string.split(separator: "\n").count, 8)
+        let headerHeight = min(max(CGFloat(headerLines) * 17 + 18, 180), 320)
+        headerHeightConstraint?.constant = headerHeight
+
+        let columnsWidth = tableView.tableColumns.reduce(CGFloat(0)) { $0 + $1.width }
+        let desiredWidth = max(1100, columnsWidth + 48)
+
+        let visibleRows = min(max(filteredRows.count, 12), 30)
+        let desiredHeight = 26 + 8 + headerHeight + 8 + CGFloat(visibleRows) * tableView.rowHeight + 76
+
+        let bounded = NSSize(
+            width: min(desiredWidth, maxWidth),
+            height: min(desiredHeight, maxHeight)
+        )
+
+        preferredContentSize = bounded
+        guard let window = view.window else { return }
+
+        let current = window.contentView?.bounds.size ?? .zero
+        let target = NSSize(
+            width: min(maxWidth, max(current.width, bounded.width)),
+            height: min(maxHeight, max(current.height, bounded.height))
+        )
+
+        if abs(target.width - current.width) > 1 || abs(target.height - current.height) > 1 {
+            window.setContentSize(target)
+        }
     }
 
     private func fileSize(_ url: URL) -> Int {
