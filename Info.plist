@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>parquet</string>
+            </array>
+            <key>CFBundleTypeName</key>
+            <string>Apache Parquet</string>
+            <key>CFBundleTypeRole</key>
+            <string>QLGenerator</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.cheky.parquet</string>
+            </array>
+        </dict>
+    </array>
+    <key>CFBundleExecutable</key>
+    <string>ParquetQuickLook</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.cheky.parquetquicklook</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>ParquetQuickLook</string>
+    <key>CFBundlePackageType</key>
+    <string>BNDL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFPlugInDynamicRegistration</key>
+    <string>NO</string>
+    <key>CFPlugInDynamicRegisterFunction</key>
+    <string></string>
+    <key>CFPlugInFactories</key>
+    <dict>
+        <key>4D31B2DE-6EE4-4D0A-87E9-112CA5C124F0</key>
+        <string>QuickLookGeneratorPluginFactory</string>
+    </dict>
+    <key>CFPlugInUnloadFunction</key>
+    <string></string>
+    <key>CFPlugInTypes</key>
+    <dict>
+        <key>5E2D9680-5022-40FA-B806-43349622E5B9</key>
+        <array>
+            <string>4D31B2DE-6EE4-4D0A-87E9-112CA5C124F0</string>
+        </array>
+    </dict>
+    <key>QLNeedsToBeRunInMainThread</key>
+    <true/>
+    <key>QLSupportsConcurrentRequests</key>
+    <true/>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeDescription</key>
+            <string>Apache Parquet</string>
+            <key>UTTypeIdentifier</key>
+            <string>com.cheky.parquet</string>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>parquet</string>
+                </array>
+                <key>public.mime-type</key>
+                <array>
+                    <string>application/vnd.apache.parquet</string>
+                    <string>application/octet-stream</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+</dict>
+</plist>

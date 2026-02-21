@@ -1,0 +1,497 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		27F297377B6B514FA277DF6E /* ParquetQuickLookHostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1B9F15AAB50483DDEBE957 /* ParquetQuickLookHostApp.swift */; };
+		2FB0A0A1E71DA9D1AFBA1C9F /* DuckDB in Frameworks */ = {isa = PBXBuildFile; productRef = 620698EEF6D43CD7F73A02F5 /* DuckDB */; };
+		5085AB445B10F236FBD7DD28 /* ParquetQuickLookExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E4F01F3BCE81F054829156F1 /* ParquetQuickLookExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BC73EE24706C014BA68BBC7C /* ParquetPreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3861EB6AA610DB203936EA2 /* ParquetPreviewProvider.swift */; };
+		D5C8C0A80228396BD1BD4836 /* parquet_preview_renderer.py in Resources */ = {isa = PBXBuildFile; fileRef = 4CE49DF931EB1BE7C899B63B /* parquet_preview_renderer.py */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		458F43FCDE801318AA208816 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 63CFAB4AE71ED3BDCA943422 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 52B20B262EE83EEA5091003C;
+			remoteInfo = ParquetQuickLookExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		FA2908F6ABF325872BE976C1 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				5085AB445B10F236FBD7DD28 /* ParquetQuickLookExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		3A1B9F15AAB50483DDEBE957 /* ParquetQuickLookHostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParquetQuickLookHostApp.swift; sourceTree = "<group>"; };
+		4CE49DF931EB1BE7C899B63B /* parquet_preview_renderer.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = parquet_preview_renderer.py; sourceTree = "<group>"; };
+		E275C92C0925DECBCC052203 /* ParquetQuickLookHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParquetQuickLookHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E4F01F3BCE81F054829156F1 /* ParquetQuickLookExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ParquetQuickLookExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F3861EB6AA610DB203936EA2 /* ParquetPreviewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParquetPreviewProvider.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		85185B965C457C2C11803317 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2FB0A0A1E71DA9D1AFBA1C9F /* DuckDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0B8207F76820782CB8993B14 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				3A1B9F15AAB50483DDEBE957 /* ParquetQuickLookHostApp.swift */,
+			);
+			name = Sources;
+			path = App/Sources;
+			sourceTree = "<group>";
+		};
+		3BEA0B066780462965B2355C /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				4CE49DF931EB1BE7C899B63B /* parquet_preview_renderer.py */,
+			);
+			name = Resources;
+			path = Extension/Resources;
+			sourceTree = "<group>";
+		};
+		A41B72688641DF5459F6947D = {
+			isa = PBXGroup;
+			children = (
+				3BEA0B066780462965B2355C /* Resources */,
+				0B8207F76820782CB8993B14 /* Sources */,
+				D2349567547B13BD76F1A590 /* Sources */,
+				D785A2591F7816494D7405F5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D2349567547B13BD76F1A590 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				F3861EB6AA610DB203936EA2 /* ParquetPreviewProvider.swift */,
+			);
+			name = Sources;
+			path = Extension/Sources;
+			sourceTree = "<group>";
+		};
+		D785A2591F7816494D7405F5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E4F01F3BCE81F054829156F1 /* ParquetQuickLookExtension.appex */,
+				E275C92C0925DECBCC052203 /* ParquetQuickLookHost.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		52B20B262EE83EEA5091003C /* ParquetQuickLookExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0EA04090777FCBAA8F39F719 /* Build configuration list for PBXNativeTarget "ParquetQuickLookExtension" */;
+			buildPhases = (
+				AAAA00E6C9BE80A0626D43C3 /* Sources */,
+				829E218B637930C9CC6F0ABC /* Resources */,
+				85185B965C457C2C11803317 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ParquetQuickLookExtension;
+			packageProductDependencies = (
+				620698EEF6D43CD7F73A02F5 /* DuckDB */,
+			);
+			productName = ParquetQuickLookExtension;
+			productReference = E4F01F3BCE81F054829156F1 /* ParquetQuickLookExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		8E1EF2BE85AA99932E79EFFE /* ParquetQuickLookHost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1DBB99A70D4C24435F253408 /* Build configuration list for PBXNativeTarget "ParquetQuickLookHost" */;
+			buildPhases = (
+				9D6639EF42746B41E390605F /* Sources */,
+				FA2908F6ABF325872BE976C1 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F28CCEAF58908D1657FF69B7 /* PBXTargetDependency */,
+			);
+			name = ParquetQuickLookHost;
+			packageProductDependencies = (
+			);
+			productName = ParquetQuickLookHost;
+			productReference = E275C92C0925DECBCC052203 /* ParquetQuickLookHost.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		63CFAB4AE71ED3BDCA943422 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					52B20B262EE83EEA5091003C = {
+						DevelopmentTeam = 4ZXR4765T9;
+						ProvisioningStyle = Automatic;
+					};
+					8E1EF2BE85AA99932E79EFFE = {
+						DevelopmentTeam = 4ZXR4765T9;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 28AF611F59700A659B707BAA /* Build configuration list for PBXProject "ParquetQuickLookModern" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A41B72688641DF5459F6947D;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B7A1DC403EC65031D8B9AF3E /* XCRemoteSwiftPackageReference "duckdb-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				52B20B262EE83EEA5091003C /* ParquetQuickLookExtension */,
+				8E1EF2BE85AA99932E79EFFE /* ParquetQuickLookHost */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		829E218B637930C9CC6F0ABC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D5C8C0A80228396BD1BD4836 /* parquet_preview_renderer.py in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9D6639EF42746B41E390605F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				27F297377B6B514FA277DF6E /* ParquetQuickLookHostApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAAA00E6C9BE80A0626D43C3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BC73EE24706C014BA68BBC7C /* ParquetPreviewProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F28CCEAF58908D1657FF69B7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 52B20B262EE83EEA5091003C /* ParquetQuickLookExtension */;
+			targetProxy = 458F43FCDE801318AA208816 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		12C6A86278615B4A75353DC7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Extension/ParquetQuickLookExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 4ZXR4765T9;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_DEBUG_DYLIB = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Extension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cheky.parquetquicklook2.host.extension;
+				PRODUCT_NAME = ParquetQuickLookExtension;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		24613D37B379A2961C51B58C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/ParquetQuickLookHost.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 4ZXR4765T9;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_DEBUG_DYLIB = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cheky.parquetquicklook2.host;
+				PRODUCT_NAME = ParquetQuickLookHost;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		577CA333C22737DC208C781A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		669F2B43194CE01B8128BB76 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Extension/ParquetQuickLookExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 4ZXR4765T9;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_DEBUG_DYLIB = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Extension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cheky.parquetquicklook2.host.extension;
+				PRODUCT_NAME = ParquetQuickLookExtension;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		C984E5653343C77F93FC7C2F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/ParquetQuickLookHost.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 4ZXR4765T9;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_DEBUG_DYLIB = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cheky.parquetquicklook2.host;
+				PRODUCT_NAME = ParquetQuickLookHost;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		FAF07B215FE4C2696C031B2C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0EA04090777FCBAA8F39F719 /* Build configuration list for PBXNativeTarget "ParquetQuickLookExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				669F2B43194CE01B8128BB76 /* Debug */,
+				12C6A86278615B4A75353DC7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		1DBB99A70D4C24435F253408 /* Build configuration list for PBXNativeTarget "ParquetQuickLookHost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C984E5653343C77F93FC7C2F /* Debug */,
+				24613D37B379A2961C51B58C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		28AF611F59700A659B707BAA /* Build configuration list for PBXProject "ParquetQuickLookModern" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				577CA333C22737DC208C781A /* Debug */,
+				FAF07B215FE4C2696C031B2C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B7A1DC403EC65031D8B9AF3E /* XCRemoteSwiftPackageReference "duckdb-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/duckdb/duckdb-swift";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		620698EEF6D43CD7F73A02F5 /* DuckDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B7A1DC403EC65031D8B9AF3E /* XCRemoteSwiftPackageReference "duckdb-swift" */;
+			productName = DuckDB;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 63CFAB4AE71ED3BDCA943422 /* Project object */;
+}

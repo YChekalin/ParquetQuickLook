@@ -1,0 +1,88 @@
+name: ParquetQuickLookModern
+options:
+  minimumXcodeGenVersion: 2.44.1
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    MARKETING_VERSION: 1.0
+    CURRENT_PROJECT_VERSION: 1
+packages:
+  DuckDB:
+    url: https://github.com/duckdb/duckdb-swift
+    branch: main
+targets:
+  ParquetQuickLookHost:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: App/Sources
+    info:
+      path: App/Info.plist
+      properties:
+        LSMinimumSystemVersion: "13.0"
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Apache Parquet
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.cheky.parquet
+        UTExportedTypeDeclarations:
+          - UTTypeConformsTo:
+              - public.data
+            UTTypeDescription: Apache Parquet
+            UTTypeIdentifier: com.cheky.parquet
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - parquet
+              public.mime-type:
+                - application/vnd.apache.parquet
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cheky.parquetquicklook2.host
+        PRODUCT_NAME: ParquetQuickLookHost
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 4ZXR4765T9
+        ENABLE_APP_SANDBOX: YES
+        CODE_SIGN_ENTITLEMENTS: App/ParquetQuickLookHost.entitlements
+        ENABLE_DEBUG_DYLIB: NO
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - target: ParquetQuickLookExtension
+        embed: true
+    scheme:
+      gatherCoverageData: false
+      testTargets: []
+  ParquetQuickLookExtension:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Extension/Sources
+      - path: Extension/Resources
+        buildPhase: resources
+    info:
+      path: Extension/Info.plist
+      properties:
+        LSMinimumSystemVersion: "13.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.quicklook.preview
+          NSExtensionPrincipalClass: "ParquetQuickLookExtension.ParquetPreviewProvider"
+          NSExtensionAttributes:
+            QLSupportedContentTypes:
+              - com.cheky.parquet
+              - public.data
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cheky.parquetquicklook2.host.extension
+        PRODUCT_NAME: ParquetQuickLookExtension
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 4ZXR4765T9
+        ENABLE_APP_SANDBOX: YES
+        CODE_SIGN_ENTITLEMENTS: Extension/ParquetQuickLookExtension.entitlements
+        ENABLE_DEBUG_DYLIB: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - package: DuckDB
+        product: DuckDB

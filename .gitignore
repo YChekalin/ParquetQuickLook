@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Legacy generator build output
+ParquetQuickLook.qlgenerator/
+
+# Modern Xcode/Swift build outputs
+ParquetQuickLookModern/build/
+ParquetQuickLookModern/.BuildNoSign/
+ParquetQuickLookModern/.DerivedData/
+ParquetQuickLookModern/.DerivedDataSigned/
+ParquetQuickLookModern/.SignedBuild/
+ParquetQuickLookModern/.SignedBuild.disabled.*/
+
+# Generated packages/checkpoints
+ParquetQuickLookModern/dist/
+ParquetQuickLookModern/checkpoints/
+
+# Xcode user state
+ParquetQuickLookModern/ParquetQuickLookModern.xcodeproj/xcuserdata/
+ParquetQuickLookModern/ParquetQuickLookModern.xcodeproj/project.xcworkspace/xcuserdata/
