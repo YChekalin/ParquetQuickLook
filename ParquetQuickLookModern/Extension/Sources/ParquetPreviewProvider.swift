@@ -5,18 +5,34 @@ import OSLog
 import QuickLookUI
 
 @objc(ParquetPreviewProvider)
-final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NSSearchFieldDelegate {
+final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NSSearchFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     private let logger = Logger(subsystem: "com.cheky.parquetquicklook2.host.extension", category: "preview")
-    private let buildMarker = "PQL_BUILD_20260212_DUCKDB_V1"
+    private let buildMarker = "PQL_BUILD_20260212_DUCKDB_TABLE_V1"
+    private let rowNumberColumnID = NSUserInterfaceItemIdentifier("__row_number__")
+
+    private struct RowRecord {
+        let index: Int
+        let values: [String: String]
+        let searchableText: String
+    }
+
+    private struct PreviewContent {
+        let header: String
+        let columns: [String]
+        let rows: [RowRecord]
+    }
 
     private var searchField: NSSearchField!
-    private var textView: NSTextView!
+    private var rowStatusLabel: NSTextField!
+    private var headerTextView: NSTextView!
+    private var tableView: NSTableView!
 
-    private var headerText = ""
-    private var rowLines: [String] = []
+    private var allColumns: [String] = []
+    private var allRows: [RowRecord] = []
+    private var filteredRows: [RowRecord] = []
 
     override func loadView() {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 1200, height: 900))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 1300, height: 920))
 
         let search = NSSearchField(frame: .zero)
         search.translatesAutoresizingMaskIntoConstraints = false
@@ -27,35 +43,73 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         search.delegate = self
         self.searchField = search
 
-        let scroll = NSScrollView(frame: .zero)
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = false
-        scroll.autohidesScrollers = true
+        let status = NSTextField(labelWithString: "0 / 0 rows")
+        status.translatesAutoresizingMaskIntoConstraints = false
+        status.alignment = .right
+        status.textColor = .secondaryLabelColor
+        status.font = NSFont.systemFont(ofSize: 12)
+        self.rowStatusLabel = status
 
-        let tv = NSTextView(frame: .zero)
-        tv.isEditable = false
-        tv.isRichText = false
-        tv.usesFontPanel = false
-        tv.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        tv.textContainerInset = NSSize(width: 10, height: 10)
-        tv.string = "Loading Parquet preview..."
-        self.textView = tv
-        scroll.documentView = tv
+        let headerScroll = NSScrollView(frame: .zero)
+        headerScroll.translatesAutoresizingMaskIntoConstraints = false
+        headerScroll.hasVerticalScroller = true
+        headerScroll.hasHorizontalScroller = false
+        headerScroll.autohidesScrollers = true
+        headerScroll.borderType = .bezelBorder
+
+        let headerTV = NSTextView(frame: .zero)
+        headerTV.isEditable = false
+        headerTV.isRichText = false
+        headerTV.usesFontPanel = false
+        headerTV.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        headerTV.textContainerInset = NSSize(width: 10, height: 8)
+        headerTV.string = "Loading Parquet preview..."
+        self.headerTextView = headerTV
+        headerScroll.documentView = headerTV
+
+        let tableScroll = NSScrollView(frame: .zero)
+        tableScroll.translatesAutoresizingMaskIntoConstraints = false
+        tableScroll.hasVerticalScroller = true
+        tableScroll.hasHorizontalScroller = true
+        tableScroll.autohidesScrollers = true
+        tableScroll.borderType = .bezelBorder
+
+        let table = NSTableView(frame: .zero)
+        table.usesAlternatingRowBackgroundColors = true
+        table.rowHeight = 24
+        table.gridStyleMask = [.solidHorizontalGridLineMask, .solidVerticalGridLineMask]
+        table.intercellSpacing = NSSize(width: 8, height: 2)
+        table.allowsColumnResizing = true
+        table.allowsColumnReordering = true
+        table.delegate = self
+        table.dataSource = self
+        self.tableView = table
+        tableScroll.documentView = table
 
         root.addSubview(search)
-        root.addSubview(scroll)
+        root.addSubview(status)
+        root.addSubview(headerScroll)
+        root.addSubview(tableScroll)
 
         NSLayoutConstraint.activate([
             search.topAnchor.constraint(equalTo: root.topAnchor, constant: 10),
             search.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
-            search.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+            search.trailingAnchor.constraint(equalTo: status.leadingAnchor, constant: -12),
             search.heightAnchor.constraint(equalToConstant: 26),
 
-            scroll.topAnchor.constraint(equalTo: search.bottomAnchor, constant: 8),
-            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor)
+            status.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+            status.centerYAnchor.constraint(equalTo: search.centerYAnchor),
+            status.widthAnchor.constraint(equalToConstant: 220),
+
+            headerScroll.topAnchor.constraint(equalTo: search.bottomAnchor, constant: 8),
+            headerScroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
+            headerScroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+            headerScroll.heightAnchor.constraint(equalToConstant: 210),
+
+            tableScroll.topAnchor.constraint(equalTo: headerScroll.bottomAnchor, constant: 8),
+            tableScroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
+            tableScroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+            tableScroll.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -10)
         ])
 
         self.view = root
@@ -67,8 +121,10 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             let content = self.buildContent(for: url)
             DispatchQueue.main.async {
                 _ = self.view
-                self.headerText = content.header
-                self.rowLines = content.rows
+                self.headerTextView.string = content.header
+                self.allColumns = content.columns
+                self.allRows = content.rows
+                self.configureTableColumns(content.columns)
                 self.applySearchFilter(self.searchField.stringValue)
                 handler(nil)
             }
@@ -86,31 +142,85 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
 
     private func applySearchFilter(_ query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let filteredRows: [String]
         if trimmed.isEmpty {
-            filteredRows = rowLines
+            filteredRows = allRows
         } else {
             let q = trimmed.lowercased()
-            filteredRows = rowLines.filter { $0.lowercased().contains(q) }
+            filteredRows = allRows.filter { $0.searchableText.contains(q) }
         }
 
-        var lines: [String] = [headerText]
-        lines.append("")
-        lines.append("Search query: \(trimmed.isEmpty ? "(none)" : trimmed)")
-        lines.append("Matching sample rows: \(filteredRows.count) / \(rowLines.count)")
-        lines.append("")
-        lines.append("Sample Rows:")
-
-        if filteredRows.isEmpty {
-            lines.append("(no matching rows)")
-        } else {
-            lines.append(contentsOf: filteredRows)
-        }
-
-        textView.string = lines.joined(separator: "\n")
+        rowStatusLabel.stringValue = "\(filteredRows.count) / \(allRows.count) rows"
+        tableView.reloadData()
     }
 
-    private func buildContent(for fileURL: URL) -> (header: String, rows: [String]) {
+    private func configureTableColumns(_ columns: [String]) {
+        for column in tableView.tableColumns {
+            tableView.removeTableColumn(column)
+        }
+
+        let numberColumn = NSTableColumn(identifier: rowNumberColumnID)
+        numberColumn.title = "#"
+        numberColumn.width = 60
+        numberColumn.minWidth = 50
+        numberColumn.maxWidth = 100
+        tableView.addTableColumn(numberColumn)
+
+        for columnName in columns {
+            let id = NSUserInterfaceItemIdentifier(columnName)
+            let column = NSTableColumn(identifier: id)
+            column.title = columnName
+            column.width = 220
+            column.minWidth = 110
+            tableView.addTableColumn(column)
+        }
+
+        tableView.reloadData()
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        filteredRows.count
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard row >= 0, row < filteredRows.count, let tableColumn else { return nil }
+
+        let identifier = NSUserInterfaceItemIdentifier("cell.\(tableColumn.identifier.rawValue)")
+        let cell: NSTableCellView
+        if let existing = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView {
+            cell = existing
+        } else {
+            let newCell = NSTableCellView(frame: .zero)
+            newCell.identifier = identifier
+
+            let textField = NSTextField(labelWithString: "")
+            textField.translatesAutoresizingMaskIntoConstraints = false
+            textField.lineBreakMode = .byTruncatingTail
+            textField.maximumNumberOfLines = 1
+            textField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+            textField.textColor = .labelColor
+            newCell.addSubview(textField)
+            newCell.textField = textField
+
+            NSLayoutConstraint.activate([
+                textField.leadingAnchor.constraint(equalTo: newCell.leadingAnchor, constant: 6),
+                textField.trailingAnchor.constraint(equalTo: newCell.trailingAnchor, constant: -6),
+                textField.topAnchor.constraint(equalTo: newCell.topAnchor, constant: 2),
+                textField.bottomAnchor.constraint(equalTo: newCell.bottomAnchor, constant: -2)
+            ])
+            cell = newCell
+        }
+
+        let record = filteredRows[row]
+        if tableColumn.identifier == rowNumberColumnID {
+            cell.textField?.stringValue = String(record.index)
+        } else {
+            cell.textField?.stringValue = record.values[tableColumn.identifier.rawValue] ?? ""
+        }
+
+        return cell
+    }
+
+    private func buildContent(for fileURL: URL) -> PreviewContent {
         let hasScope = fileURL.startAccessingSecurityScopedResource()
         defer {
             if hasScope {
@@ -150,32 +260,14 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             }
 
             let countResult = try connection.query("SELECT COUNT(*) AS c FROM read_parquet(\(pathLiteral))")
-            let totalRows: Int = {
-                if let value = countResult[0].cast(to: Int.self).first ?? nil {
-                    return value
-                }
-                if let value = countResult[0].cast(to: String.self).first ?? nil,
-                   let parsed = Int(value) {
-                    return parsed
-                }
-                return 0
-            }()
+            let totalRows = firstInt(from: countResult[0]) ?? 0
 
             let rowGroupCount: Int
             do {
                 let rowGroupResult = try connection.query(
                     "SELECT COUNT(DISTINCT row_group_id) AS g FROM parquet_metadata(\(pathLiteral))"
                 )
-                rowGroupCount = {
-                    if let value = rowGroupResult[0].cast(to: Int.self).first ?? nil {
-                        return value
-                    }
-                    if let value = rowGroupResult[0].cast(to: String.self).first ?? nil,
-                       let parsed = Int(value) {
-                        return parsed
-                    }
-                    return 0
-                }()
+                rowGroupCount = firstInt(from: rowGroupResult[0]) ?? 0
             } catch {
                 rowGroupCount = 0
             }
@@ -198,13 +290,7 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
                 }
             }
 
-            let duckDBVersion: String
-            if let versionResult = try? connection.query("SELECT version()"),
-               let version = versionResult[0].cast(to: String.self).first ?? nil {
-                duckDBVersion = version
-            } else {
-                duckDBVersion = "unknown"
-            }
+            let duckDBVersion = firstString(from: (try? connection.query("SELECT version()"))?[0]) ?? "unknown"
 
             let payload: [String: Any] = [
                 "file_name": fileURL.lastPathComponent,
@@ -230,17 +316,41 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         }
     }
 
+    private func firstInt(from column: Column<Void>) -> Int? {
+        let intColumn = column.cast(to: Int.self)
+        if let wrapped = intColumn.first, let value = wrapped {
+            return value
+        }
+
+        let stringColumn = column.cast(to: String.self)
+        if let wrapped = stringColumn.first, let value = wrapped, let parsed = Int(value) {
+            return parsed
+        }
+
+        return nil
+    }
+
+    private func firstString(from column: Column<Void>?) -> String? {
+        guard let column else { return nil }
+        let stringColumn = column.cast(to: String.self)
+        if let wrapped = stringColumn.first, let value = wrapped {
+            return value
+        }
+        return nil
+    }
+
     private func sqlStringLiteral(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "''"))'"
     }
 
-    private func buildContentFromJSON(_ json: [String: Any], fileURL: URL) -> (header: String, rows: [String]) {
+    private func buildContentFromJSON(_ json: [String: Any], fileURL: URL) -> PreviewContent {
         let fileName = (json["file_name"] as? String) ?? fileURL.lastPathComponent
         let path = (json["path"] as? String) ?? fileURL.path
         let sizeBytes = (json["size_bytes"] as? NSNumber)?.intValue ?? fileSize(fileURL)
 
         var lines: [String] = []
         lines.append("File: \(fileName)")
+        lines.append("Build marker: \(buildMarker)")
         lines.append("Path: \(path)")
         lines.append("Size: \(sizeBytes) bytes")
 
@@ -282,22 +392,32 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             lines.append("(schema unavailable)")
         }
 
-        var renderedRows: [String] = []
+        let columnOrder: [String]
+        let rowRecords: [RowRecord]
         if let rows = json["rows"] as? [[String: Any]], !rows.isEmpty {
-            let columnOrder = (json["columns"] as? [String]) ?? inferColumns(from: rows)
-            for (index, row) in rows.enumerated() {
-                let parts = columnOrder.map { column in
-                    let value = formatValue(row[column])
-                    return "\(column)=\(value)"
+            columnOrder = (json["columns"] as? [String]) ?? inferColumns(from: rows)
+            rowRecords = rows.enumerated().map { offset, row in
+                var values: [String: String] = [:]
+                values.reserveCapacity(columnOrder.count)
+                var searchParts: [String] = []
+                for column in columnOrder {
+                    let text = formatValue(row[column])
+                    values[column] = text
+                    if !text.isEmpty {
+                        searchParts.append(text.lowercased())
+                    }
                 }
-                renderedRows.append("[\(index + 1)] " + parts.joined(separator: " | "))
+                return RowRecord(index: offset + 1, values: values, searchableText: searchParts.joined(separator: " "))
             }
+        } else {
+            columnOrder = []
+            rowRecords = []
         }
 
-        return (lines.joined(separator: "\n"), renderedRows)
+        return PreviewContent(header: lines.joined(separator: "\n"), columns: columnOrder, rows: rowRecords)
     }
 
-    private func buildFallbackContent(fileURL: URL, rendererFailure: String?) -> (header: String, rows: [String]) {
+    private func buildFallbackContent(fileURL: URL, rendererFailure: String?) -> PreviewContent {
         do {
             let data = try Data(contentsOf: fileURL, options: [.mappedIfSafe])
             let head = data.prefix(4).map { String(format: "%02X", $0) }.joined(separator: " ")
@@ -325,7 +445,10 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
                 return String(format: "%04X  %@", offset, chunk.map { String(format: "%02X", $0) }.joined(separator: " "))
             }
 
-            return (lines.joined(separator: "\n"), hexRows)
+            let rows = hexRows.enumerated().map { offset, line in
+                RowRecord(index: offset + 1, values: ["Hex": line], searchableText: line.lowercased())
+            }
+            return PreviewContent(header: lines.joined(separator: "\n"), columns: ["Hex"], rows: rows)
         } catch {
             let lines = [
                 "File: \(fileURL.lastPathComponent)",
@@ -335,7 +458,7 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
                 "Schema:",
                 "(unavailable)"
             ]
-            return (lines.joined(separator: "\n"), [])
+            return PreviewContent(header: lines.joined(separator: "\n"), columns: ["Error"], rows: [])
         }
     }
 
@@ -373,7 +496,7 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         }
     }
 
-    private func clamp(_ value: String, limit: Int = 120) -> String {
+    private func clamp(_ value: String, limit: Int = 240) -> String {
         if value.count <= limit { return value }
         let end = value.index(value.startIndex, offsetBy: limit)
         return String(value[..<end]) + "..."
