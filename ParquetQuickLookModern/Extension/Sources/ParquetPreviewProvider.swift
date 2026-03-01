@@ -4,17 +4,45 @@ import Foundation
 import OSLog
 import QuickLookUI
 
+private final class NestedToggleButton: NSButton {
+    var parentIndex: Int = 0
+    var columnName: String = ""
+}
+
 @objc(ParquetPreviewProvider)
 final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NSSearchFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
     private let logger = Logger(subsystem: "com.cheky.parquetquicklook2.host.extension", category: "preview")
-    private let buildMarker = "PQL_BUILD_20260212_DUCKDB_TABLE_V2"
+    private let buildMarker = "PQL_BUILD_20260301_DUCKDB_TABLE_V3_HIER"
     private let rowNumberColumnID = NSUserInterfaceItemIdentifier("__row_number__")
+    private let nullToken = "<null>"
+    private let columnLayoutDefaultsKey = "ParquetQuickLook.ColumnLayout.v1"
+    private let headerCollapsedDefaultsKey = "ParquetQuickLook.HeaderCollapsed.v1"
 
     private struct RowRecord {
         let index: Int
         let values: [String: String]
         let rawValues: [String: Any]
         let searchableText: String
+    }
+
+    private struct NestedCellKey: Hashable {
+        let parentIndex: Int
+        let columnName: String
+    }
+
+    private struct NestedRowRecord {
+        let parentIndex: Int
+        let sourceColumn: String
+        let values: [String: String]
+    }
+
+    private struct DisplayRow {
+        enum Kind {
+            case parent(RowRecord)
+            case nested(NestedRowRecord)
+        }
+
+        let kind: Kind
     }
 
     private struct PreviewContent {
@@ -25,13 +53,22 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
 
     private var searchField: NSSearchField!
     private var rowStatusLabel: NSTextField!
+    private var rememberColumnsButton: NSButton!
+    private var resetColumnsButton: NSButton!
+    private var toggleHeaderButton: NSButton!
+    private var headerScrollView: NSScrollView!
     private var headerTextView: NSTextView!
     private var tableView: NSTableView!
     private var headerHeightConstraint: NSLayoutConstraint?
+    private var headerCollapsed = true
 
     private var allColumns: [String] = []
     private var allRows: [RowRecord] = []
     private var filteredRows: [RowRecord] = []
+    private var displayRows: [DisplayRow] = []
+    private var nestedColumns: [String] = []
+    private var configuredColumns: [String] = []
+    private var expandedNestedCells: Set<NestedCellKey> = []
 
     override func loadView() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 1300, height: 920))
@@ -52,12 +89,37 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         status.font = NSFont.systemFont(ofSize: 12)
         self.rowStatusLabel = status
 
+        let rememberButton = NSButton(title: "Remember Columns", target: self, action: #selector(rememberColumnLayout))
+        rememberButton.translatesAutoresizingMaskIntoConstraints = false
+        rememberButton.bezelStyle = .rounded
+        rememberButton.font = NSFont.systemFont(ofSize: 12)
+        self.rememberColumnsButton = rememberButton
+
+        let resetButton = NSButton(title: "Reset Columns", target: self, action: #selector(resetColumnLayout))
+        resetButton.translatesAutoresizingMaskIntoConstraints = false
+        resetButton.bezelStyle = .rounded
+        resetButton.font = NSFont.systemFont(ofSize: 12)
+        self.resetColumnsButton = resetButton
+
+        let headerButton = NSButton(title: "Show Details", target: self, action: #selector(toggleHeaderSection))
+        headerButton.translatesAutoresizingMaskIntoConstraints = false
+        headerButton.bezelStyle = .rounded
+        headerButton.font = NSFont.systemFont(ofSize: 12)
+        self.toggleHeaderButton = headerButton
+
+        let actions = NSStackView(views: [rememberButton, resetButton, headerButton])
+        actions.translatesAutoresizingMaskIntoConstraints = false
+        actions.orientation = .horizontal
+        actions.spacing = 6
+        actions.alignment = .centerY
+
         let headerScroll = NSScrollView(frame: .zero)
         headerScroll.translatesAutoresizingMaskIntoConstraints = false
         headerScroll.hasVerticalScroller = true
         headerScroll.hasHorizontalScroller = false
         headerScroll.autohidesScrollers = true
         headerScroll.borderType = .bezelBorder
+        self.headerScrollView = headerScroll
 
         let headerTV = NSTextView(frame: .zero)
         headerTV.isEditable = false
@@ -93,6 +155,7 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
 
         root.addSubview(search)
         root.addSubview(status)
+        root.addSubview(actions)
         root.addSubview(headerScroll)
         root.addSubview(tableScroll)
 
@@ -102,12 +165,15 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         NSLayoutConstraint.activate([
             search.topAnchor.constraint(equalTo: root.topAnchor, constant: 10),
             search.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
-            search.trailingAnchor.constraint(equalTo: status.leadingAnchor, constant: -12),
+            search.trailingAnchor.constraint(equalTo: status.leadingAnchor, constant: -10),
             search.heightAnchor.constraint(equalToConstant: 26),
 
-            status.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+            status.trailingAnchor.constraint(equalTo: actions.leadingAnchor, constant: -10),
             status.centerYAnchor.constraint(equalTo: search.centerYAnchor),
-            status.widthAnchor.constraint(equalToConstant: 220),
+            status.widthAnchor.constraint(equalToConstant: 170),
+
+            actions.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+            actions.centerYAnchor.constraint(equalTo: search.centerYAnchor),
 
             headerScroll.topAnchor.constraint(equalTo: search.bottomAnchor, constant: 8),
             headerScroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
@@ -119,6 +185,9 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             tableScroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
             tableScroll.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -10)
         ])
+
+        let savedCollapsed = UserDefaults.standard.object(forKey: headerCollapsedDefaultsKey) as? Bool ?? true
+        setHeaderCollapsed(savedCollapsed, persist: false)
 
         self.view = root
     }
@@ -137,7 +206,9 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
                 self.headerTextView.string = content.header
                 self.allColumns = content.columns
                 self.allRows = content.rows
-                self.configureTableColumns(content.columns)
+                self.expandedNestedCells.removeAll()
+                self.nestedColumns = []
+                self.configuredColumns = []
                 self.applySearchFilter(self.searchField.stringValue)
                 handler(nil)
             }
@@ -163,12 +234,63 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         }
 
         sortFilteredRows()
-        rowStatusLabel.stringValue = "\(filteredRows.count) / \(allRows.count) rows"
+        rebuildDisplayRows()
+        refreshTableColumnsIfNeeded()
+        let expandedLines = max(displayRows.count - filteredRows.count, 0)
+        if expandedLines > 0 {
+            rowStatusLabel.stringValue = "\(filteredRows.count) / \(allRows.count) rows (+\(expandedLines) expanded)"
+        } else {
+            rowStatusLabel.stringValue = "\(filteredRows.count) / \(allRows.count) rows"
+        }
         tableView.reloadData()
         adjustPreferredPreviewSize()
     }
 
-    private func configureTableColumns(_ columns: [String]) {
+    @objc
+    private func toggleHeaderSection() {
+        setHeaderCollapsed(!headerCollapsed)
+        adjustPreferredPreviewSize()
+    }
+
+    @objc
+    private func rememberColumnLayout() {
+        saveColumnLayout()
+    }
+
+    @objc
+    private func resetColumnLayout() {
+        UserDefaults.standard.removeObject(forKey: columnLayoutDefaultsKey)
+        configuredColumns = []
+        refreshTableColumnsIfNeeded()
+        tableView.reloadData()
+        adjustPreferredPreviewSize()
+    }
+
+    private func setHeaderCollapsed(_ collapsed: Bool, persist: Bool = true) {
+        headerCollapsed = collapsed
+        headerScrollView?.isHidden = collapsed
+        if collapsed {
+            headerHeightConstraint?.constant = 0
+            toggleHeaderButton?.title = "Show Details"
+        } else {
+            headerHeightConstraint?.constant = preferredHeaderHeight()
+            toggleHeaderButton?.title = "Hide Details"
+        }
+
+        if persist {
+            UserDefaults.standard.set(collapsed, forKey: headerCollapsedDefaultsKey)
+        }
+    }
+
+    private func refreshTableColumnsIfNeeded() {
+        let desired = allColumns + nestedColumns
+        guard desired != configuredColumns else { return }
+        configureTableColumns(allColumns, nestedColumns: nestedColumns)
+        configuredColumns = desired
+    }
+
+    private func configureTableColumns(_ columns: [String], nestedColumns: [String]) {
+        let previousSortDescriptors = tableView.sortDescriptors
         for column in tableView.tableColumns {
             tableView.removeTableColumn(column)
         }
@@ -195,60 +317,228 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             tableView.addTableColumn(column)
         }
 
-        tableView.sortDescriptors = []
+        for columnName in nestedColumns {
+            let id = NSUserInterfaceItemIdentifier(columnName)
+            let column = NSTableColumn(identifier: id)
+            column.title = columnName
+            column.width = suggestedNestedColumnWidth(for: columnName)
+            column.minWidth = 84
+            tableView.addTableColumn(column)
+        }
+
+        applySavedColumnLayout()
+
+        let validKeys = Set(tableView.tableColumns.map { $0.identifier.rawValue })
+        let restored = previousSortDescriptors.filter { descriptor in
+            guard let key = descriptor.key else { return false }
+            return validKeys.contains(key)
+        }
+        tableView.sortDescriptors = restored
         tableView.reloadData()
     }
 
+    private func saveColumnLayout() {
+        var order: [String] = []
+        var widths: [String: Double] = [:]
+
+        for column in tableView.tableColumns {
+            let id = column.identifier.rawValue
+            guard id != rowNumberColumnID.rawValue else { continue }
+            guard allColumns.contains(id) else { continue }
+            order.append(id)
+            widths[id] = Double(column.width)
+        }
+
+        let payload: [String: Any] = [
+            "order": order,
+            "widths": widths
+        ]
+        UserDefaults.standard.set(payload, forKey: columnLayoutDefaultsKey)
+    }
+
+    private func applySavedColumnLayout() {
+        guard let payload = UserDefaults.standard.dictionary(forKey: columnLayoutDefaultsKey) else { return }
+        let order = payload["order"] as? [String] ?? []
+        let rawWidths = payload["widths"] as? [String: Double] ?? [:]
+
+        var targetIndex = 1 // keep row-number column first
+        for id in order where targetIndex < tableView.numberOfColumns {
+            guard let fromIndex = tableView.tableColumns.firstIndex(where: { $0.identifier.rawValue == id }) else { continue }
+            if fromIndex != targetIndex {
+                tableView.moveColumn(fromIndex, toColumn: targetIndex)
+            }
+            targetIndex += 1
+        }
+
+        for column in tableView.tableColumns {
+            let id = column.identifier.rawValue
+            guard let savedWidth = rawWidths[id] else { continue }
+            let maxWidth = column.maxWidth > 0 ? column.maxWidth : CGFloat.greatestFiniteMagnitude
+            column.width = min(max(CGFloat(savedWidth), column.minWidth), maxWidth)
+        }
+    }
+
     func numberOfRows(in tableView: NSTableView) -> Int {
-        filteredRows.count
+        displayRows.count
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard row >= 0, row < filteredRows.count, let tableColumn else { return nil }
+        guard row >= 0, row < displayRows.count, let tableColumn else { return nil }
 
         let identifier = NSUserInterfaceItemIdentifier("cell.\(tableColumn.identifier.rawValue)")
-        let cell: NSTableCellView
-        if let existing = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView {
-            cell = existing
-        } else {
-            let newCell = NSTableCellView(frame: .zero)
-            newCell.identifier = identifier
-
-            let textField = NSTextField(labelWithString: "")
-            textField.translatesAutoresizingMaskIntoConstraints = false
-            textField.lineBreakMode = .byTruncatingTail
-            textField.maximumNumberOfLines = 1
-            textField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-            textField.textColor = .labelColor
-            newCell.addSubview(textField)
-            newCell.textField = textField
-
-            NSLayoutConstraint.activate([
-                textField.leadingAnchor.constraint(equalTo: newCell.leadingAnchor, constant: 6),
-                textField.trailingAnchor.constraint(equalTo: newCell.trailingAnchor, constant: -6),
-                textField.topAnchor.constraint(equalTo: newCell.topAnchor, constant: 2),
-                textField.bottomAnchor.constraint(equalTo: newCell.bottomAnchor, constant: -2)
-            ])
-            cell = newCell
+        let cell = makeOrReuseCell(identifier: identifier, in: tableView)
+        guard let textField = cell.textField,
+              let toggle = cell.subviews.compactMap({ $0 as? NestedToggleButton }).first else {
+            return cell
         }
 
-        let record = filteredRows[row]
-        if tableColumn.identifier == rowNumberColumnID {
-            cell.textField?.stringValue = String(record.index)
-        } else {
-            cell.textField?.stringValue = record.values[tableColumn.identifier.rawValue] ?? ""
-        }
+        textField.textColor = .textColor
+        textField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        toggle.isHidden = true
+        toggle.parentIndex = 0
+        toggle.columnName = ""
 
-        return cell
+        switch displayRows[row].kind {
+        case .parent(let record):
+            if tableColumn.identifier == rowNumberColumnID {
+                textField.stringValue = String(record.index)
+                textField.textColor = .secondaryLabelColor
+                return cell
+            }
+
+            let columnName = tableColumn.identifier.rawValue
+            let raw = record.rawValues[columnName] ?? NSNull()
+            if isExpandableNestedValue(raw) {
+                let key = NestedCellKey(parentIndex: record.index, columnName: columnName)
+                let isExpanded = expandedNestedCells.contains(key)
+                let summary = nestedSummary(raw)
+                textField.stringValue = summary
+                textField.textColor = .textColor
+                toggle.isHidden = false
+                toggle.parentIndex = record.index
+                toggle.columnName = columnName
+                toggle.image = NSImage(
+                    systemSymbolName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle.fill",
+                    accessibilityDescription: isExpanded ? "Collapse nested value" : "Expand nested value"
+                )
+                toggle.contentTintColor = .systemOrange
+            } else {
+                textField.stringValue = record.values[columnName] ?? ""
+                textField.textColor = colorForValue(textField.stringValue, defaultColor: .textColor)
+            }
+            return cell
+
+        case .nested(let nested):
+            if tableColumn.identifier == rowNumberColumnID {
+                textField.stringValue = ""
+                return cell
+            }
+
+            let columnName = tableColumn.identifier.rawValue
+            if columnName == allColumns.first {
+                textField.stringValue = "  ↳ row #\(nested.parentIndex) \(nested.sourceColumn)"
+                textField.textColor = .secondaryLabelColor
+            } else if allColumns.contains(columnName) {
+                textField.stringValue = ""
+            } else if let value = nested.values[columnName] {
+                textField.stringValue = value
+                textField.textColor = colorForValue(value, defaultColor: .textColor)
+            } else {
+                textField.stringValue = ""
+            }
+            return cell
+        }
     }
 
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         sortFilteredRows()
+        rebuildDisplayRows()
+        refreshTableColumnsIfNeeded()
         tableView.reloadData()
     }
 
+    private func makeOrReuseCell(identifier: NSUserInterfaceItemIdentifier, in tableView: NSTableView) -> NSTableCellView {
+        if let existing = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView {
+            return existing
+        }
+
+        let cell = NSTableCellView(frame: .zero)
+        cell.identifier = identifier
+
+        let toggle = NestedToggleButton(frame: .zero)
+        toggle.translatesAutoresizingMaskIntoConstraints = false
+        toggle.isBordered = false
+        toggle.bezelStyle = .shadowlessSquare
+        toggle.imagePosition = .imageOnly
+        toggle.target = self
+        toggle.action = #selector(toggleNestedCell(_:))
+        toggle.isHidden = true
+        cell.addSubview(toggle)
+
+        let textField = NSTextField(labelWithString: "")
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        textField.lineBreakMode = .byTruncatingTail
+        textField.maximumNumberOfLines = 1
+        textField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        textField.textColor = .textColor
+        cell.addSubview(textField)
+        cell.textField = textField
+
+        NSLayoutConstraint.activate([
+            toggle.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+            toggle.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            toggle.widthAnchor.constraint(equalToConstant: 16),
+            toggle.heightAnchor.constraint(equalToConstant: 16),
+
+            textField.leadingAnchor.constraint(equalTo: toggle.trailingAnchor, constant: 4),
+            textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+            textField.topAnchor.constraint(equalTo: cell.topAnchor, constant: 2),
+            textField.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -2)
+        ])
+        return cell
+    }
+
+    @objc
+    private func toggleNestedCell(_ sender: Any?) {
+        guard let sender = sender as? NestedToggleButton else { return }
+        guard sender.parentIndex > 0, !sender.columnName.isEmpty else { return }
+        let key = NestedCellKey(parentIndex: sender.parentIndex, columnName: sender.columnName)
+        if expandedNestedCells.contains(key) {
+            expandedNestedCells.remove(key)
+        } else {
+            expandedNestedCells.insert(key)
+        }
+        rebuildDisplayRows()
+        refreshTableColumnsIfNeeded()
+        tableView.reloadData()
+        adjustPreferredPreviewSize()
+    }
+
+    private func rebuildDisplayRows() {
+        var rows: [DisplayRow] = []
+        rows.reserveCapacity(filteredRows.count + 64)
+        var nestedColumnSet: Set<String> = []
+
+        for parent in filteredRows {
+            rows.append(DisplayRow(kind: .parent(parent)))
+            for columnName in allColumns {
+                let key = NestedCellKey(parentIndex: parent.index, columnName: columnName)
+                guard expandedNestedCells.contains(key) else { continue }
+                guard let raw = parent.rawValues[columnName] else { continue }
+                let nestedRows = buildNestedRows(raw, parentIndex: parent.index, sourceColumn: columnName)
+                for nested in nestedRows {
+                    nestedColumnSet.formUnion(nested.values.keys)
+                    rows.append(DisplayRow(kind: .nested(nested)))
+                }
+            }
+        }
+
+        nestedColumns = orderedNestedColumns(from: nestedColumnSet)
+        displayRows = rows
+    }
+
     @objc func copy(_ sender: Any?) {
-        guard !filteredRows.isEmpty else {
+        guard !displayRows.isEmpty else {
             NSSound.beep()
             return
         }
@@ -643,13 +933,44 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         return min(max(estimated, 120), 420)
     }
 
-    private func copyValue(row: Int, column: Int) -> String {
-        guard row >= 0, row < filteredRows.count, column >= 0, column < tableView.numberOfColumns else { return "" }
-        let tableColumn = tableView.tableColumns[column]
-        if tableColumn.identifier == rowNumberColumnID {
-            return String(filteredRows[row].index)
+    private func suggestedNestedColumnWidth(for columnName: String) -> CGFloat {
+        var maxChars = min(columnName.count, 40)
+        var measured = 0
+        for display in displayRows {
+            guard case .nested(let nested) = display.kind else { continue }
+            guard let value = nested.values[columnName] else { continue }
+            measured += 1
+            maxChars = max(maxChars, min(value.count, 56))
+            if measured >= 120 {
+                break
+            }
         }
-        return filteredRows[row].values[tableColumn.identifier.rawValue] ?? ""
+        let estimated = CGFloat(maxChars) * 7.1 + 18
+        return min(max(estimated, 84), 260)
+    }
+
+    private func copyValue(row: Int, column: Int) -> String {
+        guard row >= 0, row < displayRows.count, column >= 0, column < tableView.numberOfColumns else { return "" }
+        let tableColumn = tableView.tableColumns[column]
+        switch displayRows[row].kind {
+        case .parent(let record):
+            if tableColumn.identifier == rowNumberColumnID {
+                return String(record.index)
+            }
+            return record.values[tableColumn.identifier.rawValue] ?? ""
+        case .nested(let nested):
+            if tableColumn.identifier == rowNumberColumnID {
+                return ""
+            }
+            let columnName = tableColumn.identifier.rawValue
+            if columnName == allColumns.first {
+                return "from row #\(nested.parentIndex) \(nested.sourceColumn)"
+            }
+            if allColumns.contains(columnName) {
+                return ""
+            }
+            return nested.values[columnName] ?? ""
+        }
     }
 
     private func sanitizeForClipboard(_ value: String) -> String {
@@ -659,6 +980,11 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
             .replacingOccurrences(of: "\n", with: " ")
     }
 
+    private func preferredHeaderHeight() -> CGFloat {
+        let headerLines = max(headerTextView.string.split(separator: "\n").count, 8)
+        return min(max(CGFloat(headerLines) * 17 + 18, 180), 320)
+    }
+
     private func adjustPreferredPreviewSize() {
         let screenFrame = (view.window?.screen ?? NSScreen.main ?? NSScreen.screens.first)?.visibleFrame
             ?? NSRect(x: 0, y: 0, width: 1400, height: 900)
@@ -666,8 +992,7 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         let maxWidth = max(900, screenFrame.width - 48)
         let maxHeight = max(620, screenFrame.height - 72)
 
-        let headerLines = max(headerTextView.string.split(separator: "\n").count, 8)
-        let headerHeight = min(max(CGFloat(headerLines) * 17 + 18, 180), 320)
+        let headerHeight = headerCollapsed ? 0 : preferredHeaderHeight()
         headerHeightConstraint?.constant = headerHeight
 
         let columnsWidth = tableView.tableColumns.reduce(CGFloat(0)) { $0 + $1.width }
@@ -699,6 +1024,150 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue ?? 0
     }
 
+    private func isExpandableNestedValue(_ value: Any) -> Bool {
+        if let array = value as? [Any] {
+            return !array.isEmpty
+        }
+        if let dict = value as? [String: Any] {
+            return !dict.isEmpty
+        }
+        return false
+    }
+
+    private func nestedSummary(_ value: Any) -> String {
+        if let array = value as? [Any] {
+            if array.isEmpty { return "empty list" }
+            return "\(array.count) item(s)"
+        }
+        if let dict = value as? [String: Any] {
+            if dict.isEmpty { return "empty object" }
+            return "\(dict.count) field(s)"
+        }
+        return formatValue(value)
+    }
+
+    private func buildNestedRows(_ value: Any, parentIndex: Int, sourceColumn: String) -> [NestedRowRecord] {
+        let maxNestedRows = 120
+        let itemColumn = "\(sourceColumn).#"
+        let valueColumn = "\(sourceColumn).value"
+
+        if let array = value as? [Any] {
+            guard !array.isEmpty else { return [] }
+
+            var result: [NestedRowRecord] = []
+            result.reserveCapacity(min(array.count, maxNestedRows))
+
+            for (offset, item) in array.prefix(maxNestedRows).enumerated() {
+                var values = flattenNestedItem(item, sourceColumn: sourceColumn)
+                values[itemColumn] = String(offset + 1)
+                if values.isEmpty {
+                    values[valueColumn] = formatNestedLevelValue(item)
+                }
+                result.append(
+                    NestedRowRecord(
+                        parentIndex: parentIndex,
+                        sourceColumn: sourceColumn,
+                        values: values
+                    )
+                )
+            }
+
+            if array.count > maxNestedRows {
+                result.append(
+                    NestedRowRecord(
+                        parentIndex: parentIndex,
+                        sourceColumn: sourceColumn,
+                        values: [
+                            itemColumn: "...",
+                            valueColumn: "\(array.count - maxNestedRows) more item(s)"
+                        ]
+                    )
+                )
+            }
+            return result
+        }
+
+        if let dict = value as? [String: Any] {
+            guard !dict.isEmpty else { return [] }
+            var values: [String: String] = [itemColumn: "1"]
+            for key in dict.keys.sorted() {
+                values["\(sourceColumn).\(key)"] = formatNestedLevelValue(dict[key] ?? NSNull())
+            }
+            return [NestedRowRecord(parentIndex: parentIndex, sourceColumn: sourceColumn, values: values)]
+        }
+
+        return [
+            NestedRowRecord(
+                parentIndex: parentIndex,
+                sourceColumn: sourceColumn,
+                values: [
+                    itemColumn: "1",
+                    valueColumn: formatNestedLevelValue(value)
+                ]
+            )
+        ]
+    }
+
+    private func flattenNestedItem(_ value: Any, sourceColumn: String) -> [String: String] {
+        if let dict = value as? [String: Any] {
+            var flattened: [String: String] = [:]
+            for key in dict.keys.sorted() {
+                flattened["\(sourceColumn).\(key)"] = formatNestedLevelValue(dict[key] ?? NSNull())
+            }
+            return flattened
+        }
+        return ["\(sourceColumn).value": formatNestedLevelValue(value)]
+    }
+
+    private func orderedNestedColumns(from keys: Set<String>) -> [String] {
+        keys.sorted { lhs, rhs in
+            let left = splitNestedColumn(lhs)
+            let right = splitNestedColumn(rhs)
+
+            let leftSourceIndex = allColumns.firstIndex(of: left.source) ?? Int.max
+            let rightSourceIndex = allColumns.firstIndex(of: right.source) ?? Int.max
+            if leftSourceIndex != rightSourceIndex {
+                return leftSourceIndex < rightSourceIndex
+            }
+            if left.source != right.source {
+                return left.source < right.source
+            }
+            let leftRank = nestedFieldRank(left.field)
+            let rightRank = nestedFieldRank(right.field)
+            if leftRank != rightRank {
+                return leftRank < rightRank
+            }
+            return left.field < right.field
+        }
+    }
+
+    private func splitNestedColumn(_ key: String) -> (source: String, field: String) {
+        guard let dot = key.firstIndex(of: ".") else { return (key, "") }
+        let source = String(key[..<dot])
+        let fieldStart = key.index(after: dot)
+        let field = String(key[fieldStart...])
+        return (source, field)
+    }
+
+    private func nestedFieldRank(_ field: String) -> Int {
+        if field == "#" { return 0 }
+        if field == "value" { return 1 }
+        return 2
+    }
+
+    private func formatNestedLevelValue(_ value: Any) -> String {
+        if value is NSNull {
+            return nullToken
+        }
+        if let nestedArray = value as? [Any] {
+            return "[\(nestedArray.count) item(s)]"
+        }
+        if let nestedDict = value as? [String: Any] {
+            return "{\(nestedDict.count) field(s)}"
+        }
+        return formatValue(value)
+    }
+
     private func formatValue(_ value: Any?) -> String {
         guard let value else { return "" }
 
@@ -728,5 +1197,12 @@ final class ParquetPreviewProvider: NSViewController, QLPreviewingController, NS
         if value.count <= limit { return value }
         let end = value.index(value.startIndex, offsetBy: limit)
         return String(value[..<end]) + "..."
+    }
+
+    private func colorForValue(_ value: String, defaultColor: NSColor) -> NSColor {
+        if value.trimmingCharacters(in: .whitespacesAndNewlines) == nullToken {
+            return .tertiaryLabelColor
+        }
+        return defaultColor
     }
 }
